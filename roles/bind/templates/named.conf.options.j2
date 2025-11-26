@@ -1,0 +1,20 @@
+options {
+  directory "/var/cache/bind";
+
+  listen-on-v6 { any; };
+  listen-on { {{ bind_listen_addresses | join('; ') }}; };
+
+  allow-query { any; };
+  allow-recursion { any; };
+
+{% if bind_forwarders | length > 0 %}
+  forwarders {
+{% for forwarder in bind_forwarders %}
+    {{ forwarder }};
+{% endfor %}
+  };
+{% endif %}
+
+  dnssec-validation auto;
+  recursion yes;
+};

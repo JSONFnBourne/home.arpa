@@ -1,0 +1,7 @@
+sssd_domain: "{{ infra_domain }}"
+sssd_realm: "{{ infra_realm }}"
+sssd_ldap_uri: "ldaps://{{ infra_core_fqdn }}"
+sssd_ldap_search_base: "{{ ldap_suffix }}"
+sssd_kdc: "{{ infra_core_fqdn }}"
+sssd_allowed_shell: /bin/bash
+sssd_debug_level: 0

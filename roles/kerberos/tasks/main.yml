@@ -1,0 +1,73 @@
+---
+- name: Install Kerberos packages
+  ansible.builtin.apt:
+    name:
+      - krb5-kdc
+      - krb5-admin-server
+      - krb5-user
+    state: present
+    update_cache: true
+
+- name: Deploy krb5.conf
+  ansible.builtin.template:
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart kerberos services
+
+- name: Deploy kdc.conf
+  ansible.builtin.template:
+    src: kdc.conf.j2
+    dest: /etc/krb5kdc/kdc.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart kerberos services
+
+- name: Deploy kadm5.acl
+  ansible.builtin.template:
+    src: kadm5.acl.j2
+    dest: /etc/krb5kdc/kadm5.acl
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart kerberos services
+
+- name: Initialize Kerberos database
+  ansible.builtin.command: >
+    kdb5_util create -s -P {{ kerberos_master_password }}
+  args:
+    creates: /var/lib/krb5kdc/principal
+
+- name: Ensure admin principal exists
+  ansible.builtin.shell: |
+    if kadmin.local -q "getprinc {{ kerberos_admin_principal }}" >/dev/null 2>&1; then
+      exit 0
+    fi
+    kadmin.local -q "addprinc -pw {{ kerberos_admin_password }} {{ kerberos_admin_principal }}"
+  args:
+    executable: /bin/bash
+  register: kerberos_admin_result
+  changed_when: kerberos_admin_result.rc == 0 and kerberos_admin_result.stdout != ""
+
+- name: Ensure default principals are present
+  ansible.builtin.shell: |
+    if kadmin.local -q "getprinc {{ item.principal }}" >/dev/null 2>&1; then
+      exit 0
+    fi
+    kadmin.local -q "addprinc -pw {{ item.password }} {{ item.principal }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ kerberos_default_principals }}"
+  when: kerberos_default_principals | length > 0
+
+- name: Enable Kerberos services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - krb5-kdc
+    - krb5-admin-server

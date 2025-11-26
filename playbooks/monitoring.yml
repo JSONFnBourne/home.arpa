@@ -1,0 +1,10 @@
+---
+- name: Prometheus and Grafana stack
+  hosts: core
+  become: true
+  tags:
+    - monitoring
+  roles:
+    - role: monitoring
+      when: monitoring_enable | bool
+      tags: ['monitoring']

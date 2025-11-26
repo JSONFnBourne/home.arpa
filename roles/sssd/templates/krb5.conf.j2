@@ -1,0 +1,17 @@
+[libdefaults]
+ default_realm = {{ sssd_realm }}
+ dns_lookup_realm = false
+ dns_lookup_kdc = false
+ ticket_lifetime = 24h
+ renew_lifetime = 7d
+ forwardable = true
+
+[realms]
+ {{ sssd_realm }} = {
+  kdc = {{ sssd_kdc }}
+  admin_server = {{ sssd_kdc }}
+ }
+
+[domain_realm]
+ .{{ infra_domain }} = {{ sssd_realm }}
+ {{ infra_domain }} = {{ sssd_realm }}

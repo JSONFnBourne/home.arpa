@@ -1,0 +1,54 @@
+{% set ssl_enabled = reverse_proxy_enable_https | bool %}
+{% set cert_path = reverse_proxy_selfsigned_cert %}
+{% set key_path = reverse_proxy_selfsigned_key %}
+server {
+  listen 80;
+  server_name {{ reverse_proxy_server_name }};
+{% if ssl_enabled %}
+  return 301 https://$host$request_uri;
+{% else %}
+{% for rp in reverse_proxy_upstreams %}
+  location {{ rp.path }} {
+{% if rp.strip_path | default(false) %}
+    proxy_pass {{ rp.upstream }};
+{% else %}
+    proxy_pass {{ rp.upstream }};
+{% endif %}
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+{% if rp.websocket | default(false) %}
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection \"upgrade\";
+{% endif %}
+  }
+{% endfor %}
+{% endif %}
+}
+
+{% if ssl_enabled %}
+server {
+  listen 443 ssl;
+  server_name {{ reverse_proxy_server_name }};
+  ssl_certificate {{ cert_path }};
+  ssl_certificate_key {{ key_path }};
+  ssl_protocols TLSv1.2 TLSv1.3;
+
+{% for rp in reverse_proxy_upstreams %}
+  location {{ rp.path }} {
+{% if rp.strip_path | default(false) %}
+    proxy_pass {{ rp.upstream }};
+{% else %}
+    proxy_pass {{ rp.upstream }};
+{% endif %}
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+{% if rp.websocket | default(false) %}
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection \"upgrade\";
+{% endif %}
+  }
+{% endfor %}
+}
+{% endif %}

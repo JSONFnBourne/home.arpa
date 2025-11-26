@@ -1,0 +1,9 @@
+kerberos_realm: "{{ infra_realm }}"
+kerberos_kdc_host: "{{ infra_core_fqdn }}"
+kerberos_admin_principal: "kadmin/admin@{{ kerberos_realm }}"
+kerberos_master_password: "{{ kerberos_master_password }}"
+kerberos_admin_password: "{{ kerberos_admin_password }}"
+kerberos_supported_enctypes:
+  - aes256-cts-hmac-sha1-96
+  - aes128-cts-hmac-sha1-96
+kerberos_default_principals: []

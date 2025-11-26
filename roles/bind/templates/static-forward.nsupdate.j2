@@ -1,0 +1,7 @@
+server 127.0.0.1
+zone {{ bind_zone_name }}.
+update add {{ infra_domain }}. 300 A {{ infra_core_ip }}
+{% for record in bind_static_a_records %}
+update add {{ record.name }}.{{ bind_zone_name }}. 300 A {{ record.address }}
+{% endfor %}
+send

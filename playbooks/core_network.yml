@@ -1,0 +1,13 @@
+---
+- name: Core DNS and DHCP
+  hosts: core
+  become: true
+  tags:
+    - network
+    - dns
+    - dhcp
+  roles:
+    - role: bind
+      tags: ['dns']
+    - role: kea
+      tags: ['dhcp']

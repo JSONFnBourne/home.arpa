@@ -1,0 +1,12 @@
+bind_zone_name: "{{ infra_domain }}"
+bind_zone_file: "/var/lib/bind/db.{{ bind_zone_name }}"
+bind_reverse_zone: "{{ infra_reverse_zone }}"
+bind_reverse_zone_file: "/var/lib/bind/{{ infra_reverse_zone_file }}"
+bind_tsig_secret: "{{ infra_tsig_secret }}"
+bind_listen_addresses:
+  - 0.0.0.0
+bind_forwarders: "{{ infra_dns_forwarders | default([]) }}"
+bind_static_a_records: []
+bind_static_ptr_records: []
+bind_log_dir: /var/log/named
+bind_service_name: bind9

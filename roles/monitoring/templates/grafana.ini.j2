@@ -1,0 +1,13 @@
+[server]
+protocol = http
+http_port = 3000
+domain = {{ infra_domain }}
+root_url = %(protocol)s://%(domain)s:%(http_port)s/
+
+[security]
+admin_user = {{ monitoring_grafana_admin_user }}
+admin_password = {{ monitoring_grafana_admin_password }}
+
+[users]
+allow_sign_up = false
+default_theme = light

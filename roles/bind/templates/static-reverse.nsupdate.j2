@@ -1,0 +1,6 @@
+server 127.0.0.1
+zone {{ bind_reverse_zone }}.
+{% for record in bind_static_ptr_records %}
+update add {{ record.record }}.{{ bind_reverse_zone }}. 300 PTR {{ record.value }}
+{% endfor %}
+send

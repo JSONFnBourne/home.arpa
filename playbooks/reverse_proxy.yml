@@ -1,0 +1,9 @@
+---
+- name: Reverse proxy for monitoring
+  hosts: core
+  become: true
+  tags:
+    - proxy
+  roles:
+    - role: reverse_proxy
+      tags: ['proxy']

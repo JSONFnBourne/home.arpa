@@ -1,0 +1,15 @@
+monitoring_packages:
+  - prometheus
+  - prometheus-blackbox-exporter
+  - prometheus-node-exporter
+  - grafana
+monitoring_prometheus_config: /etc/prometheus/prometheus.yml
+monitoring_blackbox_config: /etc/prometheus/blackbox.yml
+monitoring_blackbox_listen: 0.0.0.0:9115
+monitoring_grafana_admin_user: "{{ monitoring_grafana_admin_user }}"
+monitoring_grafana_admin_password: "{{ monitoring_grafana_admin_password }}"
+monitoring_dashboards:
+  - name: internet-probes
+    src: grafana-dashboard-probes.json.j2
+    dest: internet-probes.json
+    uid: homearpa-probes

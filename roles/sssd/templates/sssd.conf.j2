@@ -1,0 +1,18 @@
+[sssd]
+services = nss, pam
+domains = default
+debug_level = {{ sssd_debug_level }}
+
+[domain/default]
+id_provider = ldap
+auth_provider = krb5
+chpass_provider = krb5
+ldap_uri = {{ sssd_ldap_uri }}
+ldap_search_base = {{ sssd_ldap_search_base }}
+ldap_tls_reqcert = allow
+krb5_server = {{ sssd_kdc }}
+krb5_realm = {{ sssd_realm }}
+cache_credentials = True
+enumerate = False
+fallback_homedir = /home/%u
+default_shell = {{ sssd_allowed_shell }}

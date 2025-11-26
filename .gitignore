@@ -1,0 +1,13 @@
+# Ansible outputs
+inventory/hosts.yml
+group_vars/all/main.yml
+group_vars/all/*.real.yml
+*.retry
+*.pyc
+__pycache__/
+.vault_pass.txt
+.vault_pass
+.vagrant/
+
+# Generated vars
+vars/generated/

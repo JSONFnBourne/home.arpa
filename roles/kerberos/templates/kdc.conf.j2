@@ -1,0 +1,12 @@
+[kdcdefaults]
+ kdc_ports = 88
+ kdc_tcp_ports = 88
+
+[realms]
+ {{ kerberos_realm }} = {
+  kadmind_port = 749
+  acl_file = /etc/krb5kdc/kadm5.acl
+  dict_file = /usr/share/dict/words
+  admin_keytab = FILE:/etc/krb5kdc/kadm5.keytab
+  supported_enctypes = {{ kerberos_supported_enctypes | join(' ') }}
+ }

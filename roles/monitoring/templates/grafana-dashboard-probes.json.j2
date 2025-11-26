@@ -1,0 +1,57 @@
+{
+  "id": null,
+  "uid": "{{ monitoring_dashboards[0].uid | default('homearpa-probes') }}",
+  "title": "Internet Probes",
+  "tags": ["home-arpa", "blackbox"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "ICMP targets up",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(probe_success{job=\"blackbox_icmp\"})",
+          "legendFormat": "up"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "HTTPS targets up",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(probe_success{job=\"blackbox_https\"})",
+          "legendFormat": "up"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Probe status",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 10},
+      "targets": [
+        {
+          "expr": "probe_success",
+          "legendFormat": "{{`{{`}}probe_name{{`}}`}}"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        }
+      ]
+    }
+  ]
+}

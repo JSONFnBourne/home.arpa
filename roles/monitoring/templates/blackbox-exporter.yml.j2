@@ -1,0 +1,17 @@
+# Managed by Ansible
+modules:
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+
+  https_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      method: GET
+      tls_config:
+        insecure_skip_verify: false
+      fail_if_not_ssl: {{ monitoring_blackbox_http_scheme == 'https' }}

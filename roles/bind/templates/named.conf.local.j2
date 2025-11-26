@@ -1,0 +1,11 @@
+zone "{{ bind_zone_name }}" {
+  type master;
+  file "{{ bind_zone_file }}";
+  allow-update { key "dhcp-ddns"; };
+};
+
+zone "{{ bind_reverse_zone }}" {
+  type master;
+  file "{{ bind_reverse_zone_file }}";
+  allow-update { key "dhcp-ddns"; };
+};

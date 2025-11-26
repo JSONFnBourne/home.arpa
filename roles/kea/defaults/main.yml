@@ -1,0 +1,19 @@
+kea_dhcp4_config_path: /etc/kea/kea-dhcp4.conf
+kea_ctrl_agent_config_path: /etc/kea/kea-ctrl-agent.conf
+kea_lease_time: 43200
+kea_subnet4:
+  - name: primary
+    cidr: "{{ infra_dhcp_subnet }}"
+    pool_start: "{{ infra_dhcp_range_start }}"
+    pool_end: "{{ infra_dhcp_range_end }}"
+    router: "{{ infra_dhcp_gateway }}"
+    dns_servers:
+      - "{{ infra_dhcp_name_server }}"
+    domain: "{{ infra_domain }}"
+    reservations: []
+kea_ddns_enable: true
+kea_ddns_server: "{{ infra_core_ip }}"
+kea_ddns_port: 53
+kea_ddns_key_name: dhcp-ddns
+kea_ddns_key_secret: "{{ infra_tsig_secret }}"
+kea_ddns_ttl: 300

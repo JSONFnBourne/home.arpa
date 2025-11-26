@@ -1,0 +1,10 @@
+---
+- name: Enroll Linux clients with SSSD
+  hosts: clients
+  become: true
+  tags:
+    - client
+    - sssd
+  roles:
+    - role: sssd
+      tags: ['sssd']

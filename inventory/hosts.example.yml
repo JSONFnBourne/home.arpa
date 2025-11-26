@@ -1,0 +1,8 @@
+all:
+  hosts:
+    core:
+      ansible_host: 192.0.2.10
+      ansible_user: ubuntu
+      ansible_port: 22
+  vars:
+    ansible_become: true

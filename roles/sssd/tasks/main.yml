@@ -1,0 +1,34 @@
+---
+- name: Install SSSD packages
+  ansible.builtin.apt:
+    name:
+      - sssd
+      - sssd-ldap
+      - sssd-krb5
+      - libpam-sss
+      - libnss-sss
+    state: present
+    update_cache: true
+
+- name: Deploy Kerberos client config
+  ansible.builtin.template:
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy sssd.conf
+  ansible.builtin.template:
+    src: sssd.conf.j2
+    dest: /etc/sssd/sssd.conf
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart sssd
+
+- name: Enable and start sssd
+  ansible.builtin.systemd:
+    name: sssd
+    state: started
+    enabled: true

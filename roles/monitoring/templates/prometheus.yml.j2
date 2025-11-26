@@ -1,0 +1,55 @@
+# Managed by Ansible
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: node
+    static_configs:
+      - targets: ['localhost:9100']
+
+{% if monitoring_targets_icmp | length > 0 %}
+  - job_name: blackbox_icmp
+    metrics_path: /probe
+    params:
+      module: ['icmp']
+    static_configs:
+{% for target in monitoring_targets_icmp %}
+      - targets: ['{{ target.address }}']
+        labels:
+          probe_group: internet-icmp
+          probe_name: {{ target.name | to_json }}
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
+{% endif %}
+
+{% if monitoring_targets_https | length > 0 %}
+  - job_name: blackbox_https
+    metrics_path: /probe
+    params:
+      module: ['https_2xx']
+    static_configs:
+{% for target in monitoring_targets_https %}
+      - targets: ['{{ target.address }}']
+        labels:
+          probe_group: aws-https
+          probe_name: {{ target.name | to_json }}
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
+{% endif %}

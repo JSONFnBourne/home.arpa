@@ -1,0 +1,101 @@
+---
+- name: Install BIND packages
+  ansible.builtin.apt:
+    name:
+      - bind9
+      - bind9utils
+      - bind9-dnsutils
+    state: present
+    update_cache: true
+
+- name: Ensure BIND directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: bind
+    group: bind
+    mode: "0750"
+  loop:
+    - "{{ bind_log_dir }}"
+    - /etc/bind/keys
+
+- name: Deploy DDNS TSIG key
+  ansible.builtin.template:
+    src: tsig.key.j2
+    dest: /etc/bind/keys/dhcp-ddns.key
+    owner: root
+    group: bind
+    mode: "0640"
+  notify: Reload bind
+
+- name: Deploy named.conf.options
+  ansible.builtin.template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+    owner: root
+    group: bind
+    mode: "0644"
+  notify: Reload bind
+
+- name: Deploy named.conf.local
+  ansible.builtin.template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+    owner: root
+    group: bind
+    mode: "0644"
+  notify: Reload bind
+
+- name: Deploy forward zone file
+  ansible.builtin.template:
+    src: db.zone.j2
+    dest: "{{ bind_zone_file }}"
+    owner: bind
+    group: bind
+    mode: "0644"
+  notify: Reload bind
+
+- name: Deploy reverse zone file
+  ansible.builtin.template:
+    src: db.reverse.j2
+    dest: "{{ bind_reverse_zone_file }}"
+    owner: bind
+    group: bind
+    mode: "0644"
+  notify: Reload bind
+
+- name: Apply static forward records
+  when: bind_static_a_records | length > 0
+  block:
+    - name: Render static forward nsupdate commands
+      ansible.builtin.template:
+        src: static-forward.nsupdate.j2
+        dest: /tmp/bind-static-forward.nsupdate
+        owner: root
+        group: root
+        mode: "0600"
+    - name: Apply static forward DNS records
+      ansible.builtin.command:
+        cmd: nsupdate -k /etc/bind/keys/dhcp-ddns.key /tmp/bind-static-forward.nsupdate
+      changed_when: false
+
+- name: Apply static reverse records
+  when: bind_static_ptr_records | length > 0
+  block:
+    - name: Render static reverse nsupdate commands
+      ansible.builtin.template:
+        src: static-reverse.nsupdate.j2
+        dest: /tmp/bind-static-reverse.nsupdate
+        owner: root
+        group: root
+        mode: "0600"
+    - name: Apply static reverse DNS records
+      ansible.builtin.command:
+        cmd: nsupdate -k /etc/bind/keys/dhcp-ddns.key /tmp/bind-static-reverse.nsupdate
+      changed_when: false
+
+- name: Enable and start bind9
+  ansible.builtin.systemd:
+    name: "{{ bind_service_name }}"
+    state: started
+    enabled: true

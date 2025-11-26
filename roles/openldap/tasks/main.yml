@@ -1,0 +1,116 @@
+---
+- name: Preseed slapd domain
+  ansible.builtin.debconf:
+    name: slapd
+    question: slapd/domain
+    value: "{{ infra_domain }}"
+    vtype: string
+
+- name: Preseed slapd admin password
+  ansible.builtin.debconf:
+    name: slapd
+    question: slapd/password1
+    value: "{{ openldap_admin_password }}"
+    vtype: password
+
+- name: Confirm slapd admin password
+  ansible.builtin.debconf:
+    name: slapd
+    question: slapd/password2
+    value: "{{ openldap_admin_password }}"
+    vtype: password
+
+- name: Install OpenLDAP packages
+  ansible.builtin.apt:
+    name:
+      - slapd
+      - ldap-utils
+      - openssl
+    state: present
+    update_cache: true
+
+- name: Deploy /etc/default/slapd
+  ansible.builtin.template:
+    src: slapd-default.j2
+    dest: /etc/default/slapd
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart slapd
+
+- name: Ensure TLS cert directory exists
+  ansible.builtin.file:
+    path: /etc/ssl/localcerts
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Generate self-signed LDAP certificate (if missing)
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -days 825
+    -subj "/CN={{ infra_core_fqdn }}/O=HOME.ARPA"
+    -newkey rsa:2048
+    -keyout {{ openldap_tls_key }}
+    -out {{ openldap_tls_cert }}
+  args:
+    creates: "{{ openldap_tls_cert }}"
+
+- name: Restrict TLS key permissions
+  ansible.builtin.file:
+    path: "{{ openldap_tls_key }}"
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+
+- name: Ensure openldap can read TLS key
+  ansible.builtin.user:
+    name: openldap
+    groups: ssl-cert
+    append: true
+
+- name: Apply TLS configuration
+  ansible.builtin.copy:
+    dest: /tmp/ldap-tls.ldif
+    content: "{{ lookup('template', 'tls.ldif.j2') }}"
+    mode: "0600"
+
+- name: Check if TLS attributes already set
+  ansible.builtin.command: ldapsearch -LLL -Y EXTERNAL -H ldapi:/// -b cn=config olcTLSCertificateFile
+  register: ldap_tls_query
+  changed_when: false
+  failed_when: false
+
+- name: Configure TLS in slapd
+  ansible.builtin.command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/ldap-tls.ldif
+  when: "'olcTLSCertificateFile' not in ldap_tls_query.stdout"
+  notify: Restart slapd
+
+- name: Ensure base directory tree exists
+  ansible.builtin.command: >
+    ldapsearch -x -H ldapi:/// -D {{ openldap_admin_dn }}
+    -w {{ openldap_admin_password }} -b {{ openldap_base_suffix }} dn
+  register: ldap_base_tree
+  changed_when: false
+  failed_when: false
+
+- name: Write bootstrap LDIF
+  ansible.builtin.copy:
+    dest: /tmp/bootstrap.ldif
+    content: "{{ lookup('template', 'bootstrap.ldif.j2') }}"
+    mode: "0600"
+
+- name: Bootstrap directory tree
+  ansible.builtin.command: >
+    ldapadd -x -H ldapi:/// -D {{ openldap_admin_dn }}
+    -w {{ openldap_admin_password }} -f /tmp/bootstrap.ldif
+  when: "'dn:' not in ldap_base_tree.stdout"
+  notify: Restart slapd
+  vars:
+    ansible_become: true
+
+- name: Ensure slapd is enabled and running
+  ansible.builtin.systemd:
+    name: slapd
+    state: started
+    enabled: true

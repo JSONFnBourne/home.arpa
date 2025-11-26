@@ -1,0 +1,10 @@
+---
+- name: Restart kea-dhcp4
+  ansible.builtin.service:
+    name: kea-dhcp4-server
+    state: restarted
+
+- name: Restart kea-ctrl-agent
+  ansible.builtin.service:
+    name: kea-ctrl-agent
+    state: restarted

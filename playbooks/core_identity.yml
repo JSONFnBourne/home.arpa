@@ -1,0 +1,13 @@
+---
+- name: Core identity services
+  hosts: core
+  become: true
+  tags:
+    - identity
+    - ldap
+    - kerberos
+  roles:
+    - role: openldap
+      tags: ['ldap']
+    - role: kerberos
+      tags: ['kerberos']

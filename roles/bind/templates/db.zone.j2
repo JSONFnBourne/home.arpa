@@ -1,0 +1,19 @@
+$TTL 3600
+@   IN SOA {{ infra_core_fqdn }}. admin.{{ infra_domain }}. (
+         {{ ansible_date_time.epoch | default(0) }} ; serial
+         3600       ; refresh
+         1800       ; retry
+         604800     ; expire
+         86400 )    ; minimum
+    IN NS {{ infra_core_fqdn }}.
+
+{{ infra_core_hostname }}   IN A {{ infra_core_ip }}
+ns                          IN A {{ infra_core_ip }}
+ldap                        IN A {{ infra_core_ip }}
+kdc                         IN A {{ infra_core_ip }}
+prometheus                  IN A {{ infra_core_ip }}
+grafana                     IN A {{ infra_core_ip }}
+
+{% for record in bind_static_a_records %}
+{{ record.name }}           IN A {{ record.address }}
+{% endfor %}

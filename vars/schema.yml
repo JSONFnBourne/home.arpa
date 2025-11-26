@@ -1,0 +1,18 @@
+# Skeleton variable schema (documentary only)
+# Each key should exist in group_vars/all/main.yml after running scripts/prepare.sh
+required_vars:
+  infra_domain: string
+  infra_realm: string
+  infra_core_hostname: string
+  infra_core_ip: ipv4
+  infra_dns_forwarders: list
+  infra_dhcp_subnet: cidr
+  infra_dhcp_range_start: ipv4
+  infra_dhcp_range_end: ipv4
+  infra_dhcp_gateway: ipv4
+  infra_tsig_secret: string
+  ldap_admin_password: string
+  kerberos_master_password: string
+  kerberos_admin_password: string
+  monitoring_enable: bool
+  reverse_proxy_enable_https: bool

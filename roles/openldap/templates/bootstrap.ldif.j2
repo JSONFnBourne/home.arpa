@@ -1,0 +1,19 @@
+{% set dc_parts = infra_domain.split('.') %}
+dn: {{ openldap_base_suffix }}
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: Home Arpa
+dc: {{ dc_parts[0] }}
+
+dn: {{ openldap_people_ou }}
+objectClass: organizationalUnit
+ou: People
+
+dn: {{ openldap_groups_ou }}
+objectClass: organizationalUnit
+ou: Groups
+
+dn: {{ openldap_service_accounts_ou }}
+objectClass: organizationalUnit
+ou: ServiceAccounts
