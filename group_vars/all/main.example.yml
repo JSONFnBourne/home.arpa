@@ -4,9 +4,20 @@ infra_realm: HOME.ARPA
 infra_core_hostname: core
 infra_core_ip: 192.168.10.2
 infra_core_fqdn: "{{ infra_core_hostname }}.{{ infra_domain }}"
+home_domain: "{{ infra_domain }}"
+home_fqdn: "{{ infra_core_fqdn }}"
 infra_dns_forwarders:
   - 1.1.1.1
   - 8.8.8.8
+
+# Time sync
+chrony_ntp_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+  - 2.pool.ntp.org
+  - 3.pool.ntp.org
+chrony_allow_networks:
+  - "{{ infra_dhcp_subnet }}"
 
 # DHCP / network
 infra_dhcp_subnet: 192.168.10.0/24
@@ -17,6 +28,67 @@ infra_dhcp_name_server: "{{ infra_core_ip }}"
 infra_reverse_zone: 10.168.192.in-addr.arpa
 infra_reverse_zone_file: db.192.168.10
 infra_tsig_secret: "CHANGEME_TSIG_BASE64"
+bind_forwarders:
+  - "127.0.0.1 port {{ cloudflared_proxy_dns_listen_port }}"
+
+# DNS over HTTPS forwarder
+cloudflared_proxy_dns_listen_port: 5053
+cloudflared_proxy_dns_upstreams:
+  - https://1.1.1.1/dns-query
+  - https://1.0.0.1/dns-query
+cloudflared_proxy_dns_bootstrap_ips:
+  - 1.1.1.1
+  - 1.0.0.1
+cloudflared_proxy_dns_max_upstream_conns: 2
+cloudflared_proxy_dns_extra_args: []
+
+# PKI (Step-CA)
+step_ca_user: step
+step_ca_group: step
+step_ca_home: /var/lib/step
+step_ca_config_dir: "{{ step_ca_home }}"
+step_ca_password_dir: "{{ step_ca_home }}/.secrets"
+step_ca_root_password: "CHANGEME_STEP_CA_ROOT"
+step_ca_intermediate_password: "CHANGEME_STEP_CA_INTERMEDIATE"
+step_ca_provisioner_password: "{{ step_ca_intermediate_password }}"
+step_ca_root_password_file: "{{ step_ca_password_dir }}/root_password"
+step_ca_intermediate_password_file: "{{ step_ca_password_dir }}/intermediate_password"
+step_ca_name: "{{ infra_core_fqdn }} Internal CA"
+step_ca_listen_address: 127.0.0.1:9000
+step_ca_listen_port: "{{ step_ca_listen_address.split(':') | last }}"
+step_cli_download_url: https://github.com/smallstep/cli/releases/latest/download/step_linux_amd64.tar.gz
+step_ca_download_url: https://github.com/smallstep/certificates/releases/latest/download/step-ca_linux_amd64.tar.gz
+step_cli_archive: /tmp/step-cli.tar.gz
+step_ca_archive: /tmp/step-ca.tar.gz
+step_cli_install_root: /usr/local/lib/step-cli
+step_ca_install_root: /usr/local/lib/step-ca
+step_cli_binary: /usr/local/bin/step
+step_ca_binary: /usr/local/bin/step-ca
+step_cli_src_binary: "{{ step_cli_install_root }}/bin/step"
+step_ca_src_binary: "{{ step_ca_install_root }}/step-ca"
+step_ca_ca_url: https://127.0.0.1:{{ step_ca_listen_port }}
+step_ca_internal_root_cert: "{{ step_ca_home }}/certs/root_ca.crt"
+step_ca_dns_names:
+  - "{{ infra_core_fqdn }}"
+  - 127.0.0.1
+  - localhost
+  - "ldap.{{ infra_domain }}"
+  - "kdc.{{ infra_domain }}"
+  - "ns.{{ infra_domain }}"
+step_ca_provisioner_name: home-lab-admin
+step_ca_host_cert_validity: 2160h
+step_ca_host_alt_names:
+  - "{{ infra_core_fqdn }}"
+  - 127.0.0.1
+  - localhost
+  - "ldap.{{ infra_domain }}"
+  - "kdc.{{ infra_domain }}"
+  - "ns.{{ infra_domain }}"
+step_ca_host_cert_path: "/etc/ssl/certs/{{ infra_core_hostname }}-chain.pem"
+step_ca_host_key_path: "/etc/ssl/private/{{ infra_core_hostname }}.key"
+step_ca_root_ca_path: /usr/local/share/ca-certificates/home-lab-step-ca.crt
+step_ca_host_cert_reload_services:
+  - nginx
 
 # Identity
 ldap_suffix: "{{ infra_domain.split('.') | map('regex_replace', '^(.*)$', 'dc=\\1') | join(',') }}"

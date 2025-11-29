@@ -1,0 +1,5 @@
+---
+chrony_config_path: /etc/chrony/chrony.conf
+chrony_driftfile: /var/lib/chrony/chrony.drift
+chrony_ntp_servers: []
+chrony_allow_networks: []

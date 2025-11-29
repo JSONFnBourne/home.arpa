@@ -1,0 +1,16 @@
+[Unit]
+Description=Smallstep Certificate Authority
+After=network.target
+Wants=network-online.target
+
+[Service]
+User={{ step_ca_user }}
+Group={{ step_ca_group }}
+Environment=STEPPATH={{ step_ca_home }}
+ExecStart={{ step_ca_binary }} --password-file {{ step_ca_root_password_file }} {{ step_ca_config_dir }}/config/ca.json
+WorkingDirectory={{ step_ca_home }}
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

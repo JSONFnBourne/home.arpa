@@ -1,0 +1,13 @@
+proxy-dns: true
+proxy-dns-address: {{ cloudflared_proxy_dns_listen_address }}
+proxy-dns-port: {{ cloudflared_proxy_dns_listen_port }}
+proxy-dns-upstream:
+{% for upstream in cloudflared_proxy_dns_upstreams %}
+  - {{ upstream }}
+{% endfor %}{% if cloudflared_proxy_dns_bootstrap_ips | length > 0 %}
+proxy-dns-bootstrap:
+{% for bootstrap in cloudflared_proxy_dns_bootstrap_ips %}
+  - {{ bootstrap }}
+{% endfor %}{% endif %}{% if cloudflared_proxy_dns_max_upstream_conns is defined %}
+proxy-dns-max-upstream-conns: {{ cloudflared_proxy_dns_max_upstream_conns }}
+{% endif %}

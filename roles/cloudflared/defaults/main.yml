@@ -1,0 +1,21 @@
+---
+cloudflared_user: cloudflared
+cloudflared_group: cloudflared
+cloudflared_config_dir: /etc/cloudflared
+cloudflared_config_file: "{{ cloudflared_config_dir }}/proxy-dns.yml"
+cloudflared_gpg_key_url: https://pkg.cloudflare.com/cloudflare-main.gpg
+cloudflared_gpg_key_path: /usr/share/keyrings/cloudflare-main.gpg
+cloudflared_repo_distribution: "{{ ansible_distribution_release | default('noble') }}"
+cloudflared_apt_repo: "deb [signed-by={{ cloudflared_gpg_key_path }}] https://pkg.cloudflare.com/cloudflared {{ cloudflared_repo_distribution }} main"
+cloudflared_package_state: present
+cloudflared_proxy_dns_service_name: cloudflared-proxy-dns
+cloudflared_proxy_dns_listen_address: 127.0.0.1
+cloudflared_proxy_dns_listen_port: 5053
+cloudflared_proxy_dns_upstreams:
+  - https://1.1.1.1/dns-query
+  - https://1.0.0.1/dns-query
+cloudflared_proxy_dns_bootstrap_ips:
+  - 1.1.1.1
+  - 1.0.0.1
+cloudflared_proxy_dns_max_upstream_conns: 2
+cloudflared_proxy_dns_extra_args: []

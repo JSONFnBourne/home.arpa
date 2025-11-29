@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+import json
+from pathlib import Path
+
+cfg_path = Path("{{ step_ca_config_dir }}/config/ca.json")
+target = "{{ step_ca_provisioner_name }}"
+validity = "{{ step_ca_host_cert_validity }}"
+
+data = json.loads(cfg_path.read_text())
+prov_list = data.get("authority", {}).get("provisioners", [])
+for prov in prov_list:
+    if prov.get("name") == target:
+        claims = prov.setdefault("claims", {})
+        claims["maxTLSCertDuration"] = validity
+        claims["defaultTLSCertDuration"] = validity
+        break
+else:
+    raise SystemExit(f"Provisioner {target!r} not found in {cfg_path}")
+
+cfg_path.write_text(json.dumps(data, indent=2) + "\n")

@@ -1,0 +1,17 @@
+# Managed by Ansible
+pool {{ chrony_ntp_servers | first | default('pool.ntp.org') }} iburst
+{% for server in chrony_ntp_servers[1:] %}
+server {{ server }} iburst
+{% endfor %}
+
+driftfile {{ chrony_driftfile }}
+makestep 1.0 3
+rtcsync
+local stratum 10
+
+{% for network in chrony_allow_networks %}
+allow {{ network }}
+{% endfor %}
+
+logdir /var/log/chrony
+log tracking measurements statistics

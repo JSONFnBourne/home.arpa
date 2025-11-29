@@ -1,0 +1,335 @@
+---
+- name: Ensure step group exists
+  ansible.builtin.group:
+    name: "{{ step_ca_group }}"
+    state: present
+
+- name: Ensure step user exists
+  ansible.builtin.user:
+    name: "{{ step_ca_user }}"
+    group: "{{ step_ca_group }}"
+    home: "{{ step_ca_home }}"
+    shell: /usr/sbin/nologin
+    state: present
+    create_home: true
+
+- name: Check if Step-CA already initialized
+  ansible.builtin.stat:
+    path: "{{ step_ca_config_dir }}/config/ca.json"
+  register: step_ca_config_stat
+
+- name: Remove stale Step-CA data when config is missing
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ step_ca_home }}/config"
+    - "{{ step_ca_home }}/secrets"
+    - "{{ step_ca_home }}/certs"
+    - "{{ step_ca_home }}/db"
+  when: not step_ca_config_stat.stat.exists
+
+- name: Ensure ssl-cert group exists
+  ansible.builtin.group:
+    name: ssl-cert
+    system: true
+    state: present
+
+- name: Ensure Step install directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ step_cli_install_root }}"
+    - "{{ step_ca_install_root }}"
+
+- name: Download Step CLI archive
+  ansible.builtin.get_url:
+    url: "{{ step_cli_download_url }}"
+    dest: "{{ step_cli_archive }}"
+    mode: "0644"
+
+- name: Extract Step CLI archive
+  ansible.builtin.unarchive:
+    src: "{{ step_cli_archive }}"
+    dest: "{{ step_cli_install_root }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    creates: "{{ step_cli_src_binary }}"
+
+- name: Install step CLI binary
+  ansible.builtin.copy:
+    src: "{{ step_cli_src_binary }}"
+    dest: "{{ step_cli_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+
+- name: Download Step-CA archive
+  ansible.builtin.get_url:
+    url: "{{ step_ca_download_url }}"
+    dest: "{{ step_ca_archive }}"
+    mode: "0644"
+
+- name: Extract Step-CA archive
+  ansible.builtin.unarchive:
+    src: "{{ step_ca_archive }}"
+    dest: "{{ step_ca_install_root }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    creates: "{{ step_ca_src_binary }}"
+
+- name: Install step-ca binary
+  ansible.builtin.copy:
+    src: "{{ step_ca_src_binary }}"
+    dest: "{{ step_ca_binary }}"
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+
+- name: Ensure step-ca directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ step_ca_user }}"
+    group: "{{ step_ca_group }}"
+    mode: "0750"
+  loop:
+    - "{{ step_ca_home }}"
+    - "{{ step_ca_config_dir }}"
+    - "{{ step_ca_password_dir }}"
+    - "{{ step_ca_home }}/logs"
+
+- name: Populate root password file
+  ansible.builtin.copy:
+    content: "{{ step_ca_root_password }}"
+    dest: "{{ step_ca_root_password_file }}"
+    owner: "{{ step_ca_user }}"
+    group: "{{ step_ca_group }}"
+    mode: "0600"
+
+- name: Populate intermediate/provisioner password file
+  ansible.builtin.copy:
+    content: "{{ step_ca_intermediate_password }}"
+    dest: "{{ step_ca_intermediate_password_file }}"
+    owner: "{{ step_ca_user }}"
+    group: "{{ step_ca_group }}"
+    mode: "0600"
+
+- name: Initialize step-ca if needed
+  ansible.builtin.command: >
+    {{ step_cli_binary }} ca init
+    --deployment-type standalone
+    --name "{{ step_ca_name }}"
+    {% for dns_name in step_ca_dns_names %}
+    --dns {{ dns_name }}
+    {% endfor %}
+    --address "{{ step_ca_listen_address }}"
+    --provisioner "{{ step_ca_provisioner_name }}"
+    --password-file {{ step_ca_root_password_file }}
+    --provisioner-password-file {{ step_ca_intermediate_password_file }}
+    --acme
+  args:
+    creates: "{{ step_ca_config_dir }}/config/ca.json"
+  become: true
+  become_user: "{{ step_ca_user }}"
+  environment:
+    STEPPATH: "{{ step_ca_home }}"
+
+- name: Read step-ca config
+  ansible.builtin.slurp:
+    path: "{{ step_ca_config_dir }}/config/ca.json"
+  register: step_ca_config_content
+  when: step_ca_config_stat.stat.exists
+
+- name: Parse step-ca config data
+  ansible.builtin.set_fact:
+    step_ca_config_data: "{{ step_ca_config_content.content | b64decode | from_json }}"
+  when:
+    - step_ca_config_content is defined
+    - step_ca_config_content.content is defined
+
+- name: Extract current provisioner claims
+  ansible.builtin.set_fact:
+    step_ca_provisioner_current_claims: "{{ (step_ca_config_data.authority.provisioners | selectattr('name','equalto', step_ca_provisioner_name) | list | first | default({})).claims | default({}) }}"
+  when: step_ca_config_data is defined
+
+- name: Ensure provisioner claim update script present
+  ansible.builtin.template:
+    src: update_provisioner_claims.py.j2
+    dest: /tmp/update_provisioner_claims.py
+    owner: "{{ step_ca_user }}"
+    group: "{{ step_ca_group }}"
+    mode: "0750"
+  become: true
+  become_user: "{{ step_ca_user }}"
+  when:
+    - step_ca_config_data is defined
+    - step_ca_provisioner_current_claims.maxTLSCertDuration | default('') != step_ca_host_cert_validity
+      or step_ca_provisioner_current_claims.defaultTLSCertDuration | default('') != step_ca_host_cert_validity
+
+- name: Update step-ca provisioner TLS durations
+  ansible.builtin.command:
+    cmd: python3 /tmp/update_provisioner_claims.py
+  become: true
+  become_user: "{{ step_ca_user }}"
+  when:
+    - step_ca_config_data is defined
+    - step_ca_provisioner_current_claims.maxTLSCertDuration | default('') != step_ca_host_cert_validity
+      or step_ca_provisioner_current_claims.defaultTLSCertDuration | default('') != step_ca_host_cert_validity
+  notify: Restart step-ca
+
+- name: Deploy systemd unit for step-ca
+  ansible.builtin.template:
+    src: step-ca.service.j2
+    dest: /etc/systemd/system/step-ca.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart step-ca
+
+- name: Ensure step-ca config changes applied
+  ansible.builtin.meta: flush_handlers
+  when: step_ca_config_data is defined
+
+- name: Copy root CA to system trust store
+  ansible.builtin.copy:
+    src: "{{ step_ca_home }}/certs/root_ca.crt"
+    dest: "{{ step_ca_root_ca_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    remote_src: true
+  notify: Update CA trust store
+
+- name: Ensure SSL directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "/etc/ssl/private", group: "ssl-cert", mode: "0750" }
+    - { path: "/etc/ssl/certs", group: "root", mode: "0755" }
+
+- name: Enable and start step-ca
+  ansible.builtin.systemd:
+    name: step-ca
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for step-ca listener
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ step_ca_listen_port | int }}"
+
+- name: Check existing host certificate
+  ansible.builtin.stat:
+    path: "{{ step_ca_host_cert_path }}"
+  register: step_ca_host_cert_stat
+
+- name: Read existing host certificate
+  ansible.builtin.slurp:
+    path: "{{ step_ca_host_cert_path }}"
+  register: step_ca_host_cert_content
+  when: step_ca_host_cert_stat.stat.exists
+
+- name: Inspect existing host certificate details
+  ansible.builtin.command:
+    cmd: "openssl x509 -noout -text -in {{ step_ca_host_cert_path }}"
+  register: step_ca_host_cert_details
+  changed_when: false
+  when: step_ca_host_cert_stat.stat.exists
+
+- name: Determine if host certificate bundle is incomplete
+  ansible.builtin.set_fact:
+    step_ca_host_cert_needs_bundle: >-
+      {{ (step_ca_host_cert_content.content | b64decode | regex_findall('-----BEGIN CERTIFICATE-----') | length) < 2 }}
+  when: step_ca_host_cert_stat.stat.exists
+
+- name: Determine if host certificate is missing primary SAN
+  ansible.builtin.set_fact:
+    step_ca_host_cert_missing_san: >-
+      {{ ('DNS:' ~ home_fqdn) not in (step_ca_host_cert_details.stdout | default('')) }}
+  when: step_ca_host_cert_stat.stat.exists
+
+- name: Build desired SAN list for host certificate
+  ansible.builtin.set_fact:
+    step_ca_host_cert_sans: "{{ ([home_fqdn] + (step_ca_host_alt_names | default([]))) | unique | list }}"
+
+- name: Build SAN command arguments
+  ansible.builtin.set_fact:
+    step_ca_host_cert_san_args: "{{ step_ca_host_cert_sans | map('regex_replace', '^(.*)$', '--san=\\1') | list }}"
+  when: step_ca_host_cert_sans | length > 0
+
+- name: Issue host certificate via step-ca
+  ansible.builtin.command:
+    argv: "{{ step_ca_host_cert_base_args + (step_ca_host_cert_san_args | default([])) }}"
+  vars:
+    step_ca_host_cert_base_args:
+      - "{{ step_cli_binary }}"
+      - ca
+      - certificate
+      - "{{ home_fqdn }}"
+      - "{{ step_ca_host_cert_path }}"
+      - "{{ step_ca_host_key_path }}"
+      - "--provisioner"
+      - "{{ step_ca_provisioner_name }}"
+      - "--provisioner-password-file"
+      - "{{ step_ca_intermediate_password_file }}"
+      - "--ca-url"
+      - "{{ step_ca_ca_url }}"
+      - "--root"
+      - "{{ step_ca_internal_root_cert }}"
+      - "--force"
+  environment:
+    STEPPATH: "{{ step_ca_home }}"
+  register: step_ca_issue_host_cert
+  when:
+    - not step_ca_host_cert_stat.stat.exists
+      or step_ca_host_cert_needs_bundle | default(false)
+      or step_ca_host_cert_missing_san | default(false)
+
+- name: Append intermediate certificate to host bundle
+  ansible.builtin.shell: |
+    cat "{{ step_ca_host_cert_path }}" "{{ step_ca_home }}/certs/intermediate_ca.crt" > "{{ step_ca_host_cert_path }}.tmp"
+    mv "{{ step_ca_host_cert_path }}.tmp" "{{ step_ca_host_cert_path }}"
+  when:
+    - step_ca_issue_host_cert is defined
+    - step_ca_issue_host_cert.rc is defined
+    - step_ca_issue_host_cert.rc == 0
+
+- name: Reload services consuming host certificate
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: reloaded
+    daemon_reload: false
+  loop: "{{ step_ca_host_cert_reload_services }}"
+  when:
+    - step_ca_issue_host_cert is defined
+    - step_ca_issue_host_cert.changed | default(false)
+    - (step_ca_host_cert_reload_services | length) > 0
+  failed_when: false
+
+- name: Set host certificate permissions
+  ansible.builtin.file:
+    path: "{{ step_ca_host_cert_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set host key permissions
+  ansible.builtin.file:
+    path: "{{ step_ca_host_key_path }}"
+    owner: root
+    group: ssl-cert
+    mode: "0640"

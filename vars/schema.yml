@@ -5,12 +5,26 @@ required_vars:
   infra_realm: string
   infra_core_hostname: string
   infra_core_ip: ipv4
+  home_domain: string
+  home_fqdn: string
   infra_dns_forwarders: list
   infra_dhcp_subnet: cidr
   infra_dhcp_range_start: ipv4
   infra_dhcp_range_end: ipv4
   infra_dhcp_gateway: ipv4
   infra_tsig_secret: string
+  chrony_ntp_servers: list
+  chrony_allow_networks: list
+  bind_forwarders: list
+  cloudflared_proxy_dns_listen_port: int
+  cloudflared_proxy_dns_upstreams: list
+  cloudflared_proxy_dns_bootstrap_ips: list
+  step_ca_root_password: string
+  step_ca_intermediate_password: string
+  step_ca_provisioner_password: string
+  step_ca_host_cert_path: string
+  step_ca_host_key_path: string
+  step_ca_host_cert_reload_services: list
   ldap_admin_password: string
   kerberos_master_password: string
   kerberos_admin_password: string

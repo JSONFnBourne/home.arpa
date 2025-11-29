@@ -5,7 +5,7 @@ bind_reverse_zone_file: "/var/lib/bind/{{ infra_reverse_zone_file }}"
 bind_tsig_secret: "{{ infra_tsig_secret }}"
 bind_listen_addresses:
   - 0.0.0.0
-bind_forwarders: "{{ infra_dns_forwarders | default([]) }}"
+bind_forwarders: "{{ (['127.0.0.1 port ' ~ (cloudflared_proxy_dns_listen_port | string)] if (cloudflared_proxy_dns_listen_port is defined) else (infra_dns_forwarders | default([]))) }}"
 bind_static_a_records: []
 bind_static_ptr_records: []
 bind_log_dir: /var/log/named

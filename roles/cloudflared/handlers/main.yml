@@ -1,0 +1,9 @@
+---
+- name: Reload cloudflared systemd units
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart cloudflared proxy-dns
+  ansible.builtin.systemd:
+    name: "{{ cloudflared_proxy_dns_service_name }}"
+    state: restarted

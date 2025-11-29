@@ -39,7 +39,10 @@ with vars_path.open('r', encoding='utf-8') as fh:
 required = [
     'infra_domain', 'infra_realm', 'infra_core_hostname', 'infra_core_ip',
     'infra_dns_forwarders', 'infra_dhcp_subnet', 'infra_dhcp_range_start',
-    'infra_dhcp_range_end', 'infra_dhcp_gateway', 'infra_tsig_secret'
+    'infra_dhcp_range_end', 'infra_dhcp_gateway', 'infra_tsig_secret',
+    'chrony_ntp_servers', 'chrony_allow_networks',
+    'cloudflared_proxy_dns_listen_port',
+    'step_ca_root_password', 'step_ca_intermediate_password', 'step_ca_provisioner_password'
 ]
 
 missing = [key for key in required if key not in data or data.get(key) in (None, '', [])]
@@ -65,6 +68,25 @@ try:
     ipaddress.ip_network(data['infra_dhcp_subnet'], strict=False)
 except Exception as exc:
     print(f"Invalid infra_dhcp_subnet: {exc}")
+    sys.exit(1)
+
+if not data.get('chrony_ntp_servers'):
+    print(f"chrony_ntp_servers must contain at least one entry in {vars_path}")
+    sys.exit(1)
+
+for net in data.get('chrony_allow_networks', []):
+    try:
+        ipaddress.ip_network(str(net), strict=False)
+    except Exception as exc:
+        print(f"Invalid chrony_allow_networks entry {net}: {exc}")
+        sys.exit(1)
+
+try:
+    port = int(data.get('cloudflared_proxy_dns_listen_port', 0))
+    if port <= 0 or port > 65535:
+        raise ValueError("outside valid port range")
+except Exception as exc:
+    print(f"Invalid cloudflared_proxy_dns_listen_port: {exc}")
     sys.exit(1)
 PY "${VARS_FILE}"
 

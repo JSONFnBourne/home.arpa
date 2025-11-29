@@ -1,3 +1,4 @@
+- import_playbook: core_services.yml
 - import_playbook: core_network.yml
 - import_playbook: core_identity.yml
 - import_playbook: reverse_proxy.yml

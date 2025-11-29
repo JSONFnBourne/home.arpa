@@ -71,6 +71,8 @@ PY
 }
 
 declare infra_domain infra_realm infra_core_hostname infra_core_ip infra_dhcp_subnet infra_dhcp_range_start infra_dhcp_range_end infra_dhcp_gateway dns_forwarders monitoring_enable reverse_proxy_enable_https grafana_password tsig_secret ansible_user ansible_port
+declare chrony_ntp_servers chrony_allow_networks cloudflared_upstreams cloudflared_bootstrap_ips cloudflared_listen_port
+declare step_ca_root_password step_ca_intermediate_password step_ca_provisioner_password step_ca_host_cert_reload_services
 
 if [[ -n "${CONFIG_FILE}" ]]; then
   if [[ ! -f "${CONFIG_FILE}" ]]; then
@@ -94,6 +96,15 @@ if [[ -n "${CONFIG_FILE}" ]]; then
   tsig_secret=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('infra_tsig_secret','CHANGEME_TSIG_BASE64'))\nPY <<<"${cfg_json}")
   ansible_user=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('ansible_user','ubuntu'))\nPY <<<"${cfg_json}")
   ansible_port=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('ansible_port',22))\nPY <<<"${cfg_json}")
+  chrony_ntp_servers=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(','.join(cfg.get('chrony_ntp_servers',['0.pool.ntp.org','1.pool.ntp.org','2.pool.ntp.org','3.pool.ntp.org'])))\nPY <<<"${cfg_json}")
+  chrony_allow_networks=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(','.join(cfg.get('chrony_allow_networks',[cfg.get('infra_dhcp_subnet','192.168.10.0/24')])))\nPY <<<"${cfg_json}")
+  cloudflared_upstreams=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(','.join(cfg.get('cloudflared_proxy_dns_upstreams',['https://1.1.1.1/dns-query','https://1.0.0.1/dns-query'])))\nPY <<<"${cfg_json}")
+  cloudflared_bootstrap_ips=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(','.join(cfg.get('cloudflared_proxy_dns_bootstrap_ips',['1.1.1.1','1.0.0.1'])))\nPY <<<"${cfg_json}")
+  cloudflared_listen_port=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('cloudflared_proxy_dns_listen_port',5053))\nPY <<<"${cfg_json}")
+  step_ca_root_password=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('step_ca_root_password','CHANGEME_STEP_CA_ROOT'))\nPY <<<"${cfg_json}")
+  step_ca_intermediate_password=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('step_ca_intermediate_password','CHANGEME_STEP_CA_INTERMEDIATE'))\nPY <<<"${cfg_json}")
+  step_ca_provisioner_password=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(cfg.get('step_ca_provisioner_password', cfg.get('step_ca_intermediate_password','CHANGEME_STEP_CA_INTERMEDIATE')))\nPY <<<"${cfg_json}")
+  step_ca_host_cert_reload_services=$(python3 - <<'PY'\nimport json,sys\ncfg=json.loads(sys.stdin.read())\nprint(','.join(cfg.get('step_ca_host_cert_reload_services',['nginx'])))\nPY <<<"${cfg_json}")
 else
   prompt infra_domain "Primary domain" "home.arpa"
   default_realm="$(echo "${infra_domain}" | tr '[:lower:]' '[:upper:]')"
@@ -111,6 +122,15 @@ else
   prompt tsig_secret "TSIG secret (base64)" "CHANGEME_TSIG_BASE64"
   prompt ansible_user "Ansible SSH user" "ubuntu"
   prompt ansible_port "SSH port" "22"
+  chrony_ntp_servers="0.pool.ntp.org,1.pool.ntp.org,2.pool.ntp.org,3.pool.ntp.org"
+  chrony_allow_networks="${infra_dhcp_subnet}"
+  cloudflared_upstreams="https://1.1.1.1/dns-query,https://1.0.0.1/dns-query"
+  cloudflared_bootstrap_ips="1.1.1.1,1.0.0.1"
+  cloudflared_listen_port="5053"
+  step_ca_root_password="CHANGEME_STEP_CA_ROOT"
+  step_ca_intermediate_password="CHANGEME_STEP_CA_INTERMEDIATE"
+  step_ca_provisioner_password="${step_ca_intermediate_password}"
+  step_ca_host_cert_reload_services="nginx"
 fi
 
 infra_core_fqdn="${infra_core_hostname}.${infra_domain}"
@@ -119,6 +139,11 @@ infra_reverse_zone="${reverse_info[0]}"
 infra_reverse_zone_file="${reverse_info[1]}"
 
 IFS=',' read -r -a forwarders_array <<<"${dns_forwarders}"
+IFS=',' read -r -a chrony_servers_array <<<"${chrony_ntp_servers}"
+IFS=',' read -r -a chrony_allow_array <<<"${chrony_allow_networks}"
+IFS=',' read -r -a cloudflared_upstreams_array <<<"${cloudflared_upstreams}"
+IFS=',' read -r -a cloudflared_bootstrap_array <<<"${cloudflared_bootstrap_ips}"
+IFS=',' read -r -a step_ca_reload_services_array <<<"${step_ca_host_cert_reload_services}"
 
 mkdir -p "${ROOT_DIR}/inventory" "${ROOT_DIR}/group_vars/all"
 
@@ -139,8 +164,15 @@ infra_realm: ${infra_realm}
 infra_core_hostname: ${infra_core_hostname}
 infra_core_ip: ${infra_core_ip}
 infra_core_fqdn: ${infra_core_fqdn}
+home_domain: ${infra_domain}
+home_fqdn: ${infra_core_fqdn}
 infra_dns_forwarders:
 $(for f in "${forwarders_array[@]}"; do echo "  - ${f}"; done)
+
+chrony_ntp_servers:
+$(for s in "${chrony_servers_array[@]}"; do echo "  - ${s}"; done)
+chrony_allow_networks:
+$(for n in "${chrony_allow_array[@]}"; do echo "  - ${n}"; done)
 
 infra_dhcp_subnet: ${infra_dhcp_subnet}
 infra_dhcp_range_start: ${infra_dhcp_range_start}
@@ -150,6 +182,63 @@ infra_dhcp_name_server: ${infra_core_ip}
 infra_reverse_zone: ${infra_reverse_zone}
 infra_reverse_zone_file: ${infra_reverse_zone_file}
 infra_tsig_secret: ${tsig_secret}
+bind_forwarders:
+  - "127.0.0.1 port ${cloudflared_listen_port}"
+
+cloudflared_proxy_dns_listen_port: ${cloudflared_listen_port}
+cloudflared_proxy_dns_upstreams:
+$(for u in "${cloudflared_upstreams_array[@]}"; do echo "  - ${u}"; done)
+cloudflared_proxy_dns_bootstrap_ips:
+$(for b in "${cloudflared_bootstrap_array[@]}"; do echo "  - ${b}"; done)
+cloudflared_proxy_dns_max_upstream_conns: 2
+cloudflared_proxy_dns_extra_args: []
+
+step_ca_user: step
+step_ca_group: step
+step_ca_home: /var/lib/step
+step_ca_config_dir: "{{ step_ca_home }}"
+step_ca_password_dir: "{{ step_ca_home }}/.secrets"
+step_ca_root_password: ${step_ca_root_password}
+step_ca_intermediate_password: ${step_ca_intermediate_password}
+step_ca_provisioner_password: ${step_ca_provisioner_password}
+step_ca_root_password_file: "{{ step_ca_password_dir }}/root_password"
+step_ca_intermediate_password_file: "{{ step_ca_password_dir }}/intermediate_password"
+step_ca_name: "${infra_core_fqdn} Internal CA"
+step_ca_listen_address: 127.0.0.1:9000
+step_ca_listen_port: "{{ step_ca_listen_address.split(':') | last }}"
+step_cli_download_url: https://github.com/smallstep/cli/releases/latest/download/step_linux_amd64.tar.gz
+step_ca_download_url: https://github.com/smallstep/certificates/releases/latest/download/step-ca_linux_amd64.tar.gz
+step_cli_archive: /tmp/step-cli.tar.gz
+step_ca_archive: /tmp/step-ca.tar.gz
+step_cli_install_root: /usr/local/lib/step-cli
+step_ca_install_root: /usr/local/lib/step-ca
+step_cli_binary: /usr/local/bin/step
+step_ca_binary: /usr/local/bin/step-ca
+step_cli_src_binary: "{{ step_cli_install_root }}/bin/step"
+step_ca_src_binary: "{{ step_ca_install_root }}/step-ca"
+step_ca_ca_url: https://127.0.0.1:{{ step_ca_listen_port }}
+step_ca_internal_root_cert: "{{ step_ca_home }}/certs/root_ca.crt"
+step_ca_dns_names:
+  - "${infra_core_fqdn}"
+  - 127.0.0.1
+  - localhost
+  - "ldap.${infra_domain}"
+  - "kdc.${infra_domain}"
+  - "ns.${infra_domain}"
+step_ca_provisioner_name: home-lab-admin
+step_ca_host_cert_validity: 2160h
+step_ca_host_alt_names:
+  - "${infra_core_fqdn}"
+  - 127.0.0.1
+  - localhost
+  - "ldap.${infra_domain}"
+  - "kdc.${infra_domain}"
+  - "ns.${infra_domain}"
+step_ca_host_cert_path: "/etc/ssl/certs/${infra_core_hostname}-chain.pem"
+step_ca_host_key_path: "/etc/ssl/private/${infra_core_hostname}.key"
+step_ca_root_ca_path: /usr/local/share/ca-certificates/home-lab-step-ca.crt
+step_ca_host_cert_reload_services:
+$(for svc in "${step_ca_reload_services_array[@]}"; do echo "  - ${svc}"; done)
 
 ldap_admin_password: CHANGEME_LDAP_ADMIN
 kerberos_master_password: CHANGEME_KRB5_MASTER

@@ -1,0 +1,10 @@
+---
+- name: Restart step-ca
+  ansible.builtin.systemd:
+    name: step-ca
+    state: restarted
+    daemon_reload: true
+
+- name: Update CA trust store
+  ansible.builtin.command: update-ca-certificates
+  listen: Update CA trust store

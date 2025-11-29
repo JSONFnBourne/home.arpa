@@ -5,6 +5,6 @@ openldap_admin_password: "{{ ldap_admin_password }}"
 openldap_people_ou: "ou=People,{{ openldap_base_suffix }}"
 openldap_groups_ou: "ou=Groups,{{ openldap_base_suffix }}"
 openldap_service_accounts_ou: "ou=ServiceAccounts,{{ openldap_base_suffix }}"
-openldap_tls_cert: /etc/ssl/localcerts/ldap.pem
-openldap_tls_key: /etc/ssl/localcerts/ldap.key
-openldap_tls_ca: /etc/ssl/certs/ca-certificates.crt
+openldap_tls_cert: "{{ step_ca_host_cert_path | default('/etc/ssl/localcerts/ldap.pem') }}"
+openldap_tls_key: "{{ step_ca_host_key_path | default('/etc/ssl/localcerts/ldap.key') }}"
+openldap_tls_ca: "{{ step_ca_root_ca_path | default('/etc/ssl/certs/ca-certificates.crt') }}"

@@ -1,5 +1,5 @@
 reverse_proxy_server_name: "{{ infra_core_fqdn }}"
 reverse_proxy_enable_https: "{{ reverse_proxy_enable_https | default(false) }}"
-reverse_proxy_selfsigned_cert: /etc/nginx/selfsigned.crt
-reverse_proxy_selfsigned_key: /etc/nginx/selfsigned.key
+reverse_proxy_selfsigned_cert: "{{ step_ca_host_cert_path | default('/etc/nginx/selfsigned.crt') }}"
+reverse_proxy_selfsigned_key: "{{ step_ca_host_key_path | default('/etc/nginx/selfsigned.key') }}"
 reverse_proxy_upstreams: "{{ reverse_proxy_upstreams }}"
